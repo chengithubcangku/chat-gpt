@@ -1,29 +1,13 @@
 # chatgpt
 
-## Project setup
+## 介绍
 
-```
-yarn install
-```
+基于 gpt-3.5-turbo 的 ChatGPT 在线聊天小玩意
 
-### Compiles and hot-reloads for development
+纯前端项目，数据存储在 localstorage 中
 
-```
-yarn serve
-```
+预览：[ChatGPT](https://chatgpt.n0ts.cn/)
 
-### Compiles and minifies for production
+## QQ 群讨论
 
-```
-yarn build
-```
-
-### Lints and fixes files
-
-```
-yarn lint
-```
-
-### Customize configuration
-
-See [Configuration Reference](https://cli.vuejs.org/config/).
+[坚果茶馆](https://jq.qq.com/?_wv=1027&k=Mh7ah6Dd)
