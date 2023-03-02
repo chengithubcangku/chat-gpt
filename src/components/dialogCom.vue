@@ -118,4 +118,11 @@ const props = defineProps<{
     opacity: 1 !important;
     visibility: visible !important;
 }
+
+@media screen and (max-width: 700px) {
+    #main {
+        width: 80% !important;
+        padding: 20px 10px 50px !important;
+    }
+}
 </style>
