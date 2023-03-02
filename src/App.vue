@@ -7,7 +7,7 @@
 -->
 <template>
     <div id="chatgpt">
-        <div id="sidebar">
+        <div id="sidebar" :class="{ sideBarShow: sideBarShow }">
             <div id="chats">
                 <div class="btn" @click="newClient">新建会话</div>
                 <div class="list">
@@ -21,6 +21,9 @@
                         <span @click="removeClient(index)">删除</span>
                     </div>
                 </div>
+            </div>
+            <div id="showBtn" @click="sideBarShow = !sideBarShow">
+                {{ sideBarShow ? "收起" : "展开" }}
             </div>
         </div>
         <div id="main">
@@ -380,6 +383,9 @@ function addCodeNum(dom: any) {
             "\n</li></ol>";
     }
 }
+
+// 侧边栏显示
+const sideBarShow = ref(false);
 </script>
 
 <style scoped lang="less">
@@ -399,7 +405,12 @@ function addCodeNum(dom: any) {
 
     #sidebar {
         width: 350px;
+        height: 100%;
         background-color: #202123;
+        position: relative;
+        left: 0;
+        top: 0;
+        z-index: 1;
 
         #chats {
             padding: 10px;
@@ -455,6 +466,23 @@ function addCodeNum(dom: any) {
                 }
             }
         }
+
+        #showBtn {
+            position: absolute;
+            top: 10%;
+            right: 0;
+            transform: translateX(100%);
+            padding: 10px 15px;
+            background-color: #202123;
+            cursor: pointer;
+            z-index: 1;
+            user-select: none;
+            visibility: hidden;
+        }
+    }
+
+    .sideBarShow {
+        transform: translateX(0) !important;
     }
 
     #main {
@@ -617,6 +645,46 @@ function addCodeNum(dom: any) {
                     }
                 }
             }
+        }
+    }
+}
+
+@media screen and (max-width: 1200px) {
+    #sidebar {
+        position: absolute !important;
+        transform: translateX(-100%);
+
+        #showBtn {
+            visibility: visible !important;
+        }
+    }
+
+    #messages {
+        > div {
+            padding: 20px 50px !important;
+        }
+    }
+}
+
+@media screen and (max-width: 700px) {
+    #messages {
+        > div {
+            padding: 20px 20px !important;
+        }
+    }
+
+    #chats .list > div span {
+        opacity: 1 !important;
+        visibility: visible !important;
+        transform: translateX(0) !important;
+        color: red !important;
+    }
+}
+
+@media screen and (max-width: 450px) {
+    #messages {
+        > div {
+            padding: 10px !important;
         }
     }
 }
