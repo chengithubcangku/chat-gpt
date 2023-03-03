@@ -35,7 +35,7 @@
                     <div class="img">
                         <img
                             v-if="item.role == 'user'"
-                            src="https://q1.qlogo.cn/g?b=qq&nk=1656071287&s=640"
+                            src="@/assets/user.webp"
                             alt="You"
                         />
                         <img v-else src="@/assets/logo.png" alt="chatgpt" />
