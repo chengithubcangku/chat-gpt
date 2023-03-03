@@ -472,7 +472,11 @@ function copyCode(el: MouseEvent) {
 
                 > div {
                     padding: 10px 0 10px 30px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                     cursor: pointer;
+                    width: 60%;
                     margin-bottom: 10px;
 
                     span {
