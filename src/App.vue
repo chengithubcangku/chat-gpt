@@ -247,7 +247,7 @@ function send() {
     message.value = "";
 
     scrollToBottom();
-    // submit();
+    submit();
 }
 
 // 获取聊天窗口 dom
