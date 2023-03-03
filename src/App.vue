@@ -18,7 +18,7 @@
                         :class="{ active: clientsIndex == index }"
                     >
                         {{ item.name }}
-                        <span @click="removeClient(index)">删除</span>
+                        <span @click.stop="removeClient(index)">删除</span>
                     </div>
                 </div>
             </div>
@@ -117,6 +117,7 @@ import DialogCom from "@/components/dialogCom.vue";
 import messageUtil from "@/utils/messageUtil";
 import { marked } from "marked";
 import hljs from "highlight.js";
+import Clipboard from "clipboard";
 
 // key
 const cacheKey = window.localStorage.getItem("chatgpt-key");
@@ -246,7 +247,7 @@ function send() {
     message.value = "";
 
     scrollToBottom();
-    submit();
+    // submit();
 }
 
 // 获取聊天窗口 dom
@@ -260,12 +261,20 @@ onMounted(() => {
  */
 async function scrollToBottom() {
     await nextTick();
+    messageDom = document.querySelector("#messages");
     if (messageDom) {
+        const childrens = messageDom.children;
+        let height = 0;
+        if (childrens[childrens.length - 1]) {
+            height += childrens[childrens.length - 1].clientHeight;
+        }
+        if (childrens[childrens.length - 2]) {
+            height += childrens[childrens.length - 2].clientHeight;
+        }
         messageDom.scrollTo({
-            top: messageDom.scrollHeight
+            top: messageDom.scrollHeight - height
         });
     } else {
-        messageDom = document.querySelector("#messages");
         scrollToBottom();
     }
 }
@@ -369,8 +378,17 @@ function removeClient(i: number) {
 async function hljsInit() {
     await nextTick();
     const dom: any = [];
-    document.querySelectorAll("#messages pre code").forEach((el: any) => {
+    document.querySelectorAll("#messages pre code").forEach((el1: Element) => {
+        const el = el1 as HTMLElement;
         if (!el.className.includes("hljs")) {
+            const copyBtn = document.createElement("div");
+            copyBtn.className = "copyBtn";
+            copyBtn.innerHTML = "复制";
+            copyBtn.setAttribute("code", el.innerHTML);
+            copyBtn.addEventListener("click", (e) => {
+                copyCode(e);
+            });
+            el.parentElement?.appendChild(copyBtn);
             hljs.highlightElement(el);
             dom.push(el);
         }
@@ -393,6 +411,20 @@ function addCodeNum(dom: any) {
 
 // 侧边栏显示
 const sideBarShow = ref(false);
+
+/**
+ * 复制代码块
+ */
+function copyCode(el: MouseEvent) {
+    const code = (el.target as HTMLElement).getAttribute("code");
+    if (code) {
+        Clipboard.copy(code);
+        messageUtil({
+            type: "success",
+            content: "复制成功"
+        });
+    }
+}
 </script>
 
 <style scoped lang="less">
