@@ -38,11 +38,7 @@
                             src="https://q1.qlogo.cn/g?b=qq&nk=1656071287&s=640"
                             alt="You"
                         />
-                        <img
-                            v-else
-                            src="https://chat.openai.com/apple-touch-icon.png"
-                            alt="chatgpt"
-                        />
+                        <img v-else src="@/assets/logo.png" alt="chatgpt" />
                     </div>
                     <div
                         class="content"
@@ -157,18 +153,23 @@ async function submit() {
     loading.value = true;
     await axios({
         method: "post",
-        url: "https://api.openai.com/v1/chat/completions",
-        headers: {
-            Authorization: `Bearer ${key.value}`
-        },
+        url: "https://node.fatshady.cn/cors",
+        timeout: 600000,
         data: {
-            model: "gpt-3.5-turbo",
-            messages: clients[clientsIndex.value].contents
-        },
-        timeout: 600000
+            method: "POST",
+            url: "https://api.openai.com/v1/chat/completions",
+            data: {
+                model: "gpt-3.5-turbo",
+                messages: clients[clientsIndex.value].contents
+            },
+            timeout: 60000,
+            headers: {
+                Authorization: `Bearer ${key.value}`
+            }
+        }
     })
         .then((res: any) => {
-            pushResult(res);
+            pushResult(res.data);
         })
         .catch((err) => {
             console.error("错误", err);
