@@ -165,27 +165,15 @@ async function submit() {
             model: "gpt-3.5-turbo",
             messages: clients[clientsIndex.value].contents
         },
-        timeout: 30000
+        timeout: 600000
     })
         .then((res: any) => {
-            // 塞入显示数据，role 为 assistant
-            clients[clientsIndex.value].contents.push({
-                role: "assistant",
-                content: res.data.choices[0].message.content
-            });
-            hljsInit();
-            window.localStorage.setItem(
-                "message-data",
-                JSON.stringify(clients)
-            );
-            scrollToBottom();
-            console.log(
-                "🚀 对话结果： | clients[clientsIndex.value].contents:",
-                clients[clientsIndex.value].contents
-            );
+            pushResult(res);
         })
         .catch((err) => {
-            if (err.response.data.error.code == "invalid_api_key") {
+            console.error("错误", err);
+            pushResult(null, "网络请求超时，请联系站长排查");
+            if (err.response?.data?.error?.code == "invalid_api_key") {
                 messageUtil({
                     type: "danger",
                     content: "key 错误，请重新输入"
@@ -198,6 +186,24 @@ async function submit() {
         .finally(() => {
             loading.value = false;
         });
+}
+
+/**
+ * 存入数据
+ */
+function pushResult(res: any, errContent?: string) {
+    // 塞入显示数据，role 为 assistant
+    clients[clientsIndex.value].contents.push({
+        role: "assistant",
+        content: errContent ? errContent : res.data.choices[0].message.content
+    });
+    hljsInit();
+    window.localStorage.setItem("message-data", JSON.stringify(clients));
+    scrollToBottom();
+    console.log(
+        "🚀 对话结果： | clients[clientsIndex.value].contents:",
+        clients[clientsIndex.value].contents
+    );
 }
 
 // 消息框内容
