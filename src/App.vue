@@ -20,6 +20,10 @@
                         {{ item.name }}
                         <span @click.stop="removeClient(index)">删除</span>
                     </div>
+                    <div>
+                        <p>testtesttesttesttesttesttesttesttesttest</p>
+                        <span>删除</span>
+                    </div>
                 </div>
             </div>
             <div id="showBtn" @click="sideBarShow = !sideBarShow">
@@ -236,7 +240,7 @@ function send() {
 
     // 第一句对话修改标题
     if (clients[clientsIndex.value].contents.length == 1) {
-        const cacheName = message.value.substring(0, 50);
+        const cacheName = message.value;
         clients[clientsIndex.value].name = cacheName;
         document.title = cacheName + " | ChatGPT";
     }
@@ -473,20 +477,26 @@ function copyCode(el: MouseEvent) {
                 > div {
                     padding: 10px 0 10px 30px;
                     overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                    cursor: pointer;
-                    width: 60%;
                     margin-bottom: 10px;
+                    position: relative;
+
+                    p {
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        cursor: pointer;
+                        overflow: hidden;
+                        width: 70%;
+                    }
 
                     span {
                         font-size: 0.8rem;
-                        float: right;
-                        margin-right: 20px;
                         color: gray;
                         opacity: 0;
                         visibility: hidden;
-                        transform: translateX(10px);
+                        position: absolute;
+                        right: 20px;
+                        top: 50%;
+                        transform: translate(10px, -50%);
 
                         &:hover {
                             color: red;
@@ -500,7 +510,7 @@ function copyCode(el: MouseEvent) {
                     &:hover span {
                         opacity: 1;
                         visibility: visible;
-                        transform: translateX(0);
+                        transform: translate(0, -50%);
                     }
                 }
 
