@@ -17,12 +17,8 @@
                         @click="clientsIndex = index"
                         :class="{ active: clientsIndex == index }"
                     >
-                        {{ item.name }}
+                        <p>{{ item.name }}</p>
                         <span @click.stop="removeClient(index)">删除</span>
-                    </div>
-                    <div>
-                        <p>testtesttesttesttesttesttesttesttesttest</p>
-                        <span>删除</span>
                     </div>
                 </div>
             </div>
