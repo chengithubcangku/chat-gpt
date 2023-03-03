@@ -10,6 +10,7 @@
         <div id="sidebar" :class="{ sideBarShow: sideBarShow }">
             <div id="chats">
                 <div class="btn" @click="newClient">新建会话</div>
+                <div class="btn" @click="reloadConfig">重置配置</div>
                 <div class="list">
                     <div
                         v-for="(item, index) in clients"
@@ -170,15 +171,22 @@ async function submit() {
         }
     })
         .then((res: any) => {
+            if (res.data.status == 400) {
+                throw res.data;
+            }
+
             pushResult(res.data);
         })
         .catch((err) => {
-            console.error("错误", err);
-            pushResult(null, "网络请求超时，请联系站长排查");
-            if (err.response?.data?.error?.code == "invalid_api_key") {
+            pushResult(
+                null,
+                `网络请求错误，请联系站长排查！错误内容：
+                    \`\`\`${JSON.stringify(err.msg)}\`\`\``
+            );
+            if (err.msg?.error?.code == "invalid_api_key") {
                 messageUtil({
                     type: "danger",
-                    content: "key 错误，请重新输入"
+                    content: `key 错误，请重新输入`
                 });
                 window.localStorage.removeItem("chatgpt-key");
                 okKeyDialog.value = true;
@@ -425,6 +433,15 @@ function copyCode(el: MouseEvent) {
         });
     }
 }
+
+/**
+ * 重置配置
+ */
+function reloadConfig() {
+    window.localStorage.removeItem("message-data");
+    window.localStorage.removeItem("chatgpt-key");
+    window.location.reload();
+}
 </script>
 
 <style scoped lang="less">
@@ -461,6 +478,7 @@ function copyCode(el: MouseEvent) {
             .btn {
                 border: 1px solid #ffffff33;
                 padding: 10px 0 10px 30px;
+                margin-bottom: 10px;
 
                 &:hover {
                     background-color: #2b2c2f;
@@ -493,6 +511,7 @@ function copyCode(el: MouseEvent) {
                         right: 20px;
                         top: 50%;
                         transform: translate(10px, -50%);
+                        cursor: pointer;
 
                         &:hover {
                             color: red;
