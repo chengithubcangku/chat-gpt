@@ -43,8 +43,12 @@
                     </div>
                     <div
                         class="content"
+                        v-if="item.role == 'assistant'"
                         v-html="marked.parse(item.content)"
                     ></div>
+                    <div v-else class="content">
+                        <p>{{ item.content }}</p>
+                    </div>
                 </div>
                 <div v-if="loading">
                     <div class="img">
@@ -392,7 +396,7 @@ async function hljsInit() {
             const copyBtn = document.createElement("div");
             copyBtn.className = "copyBtn";
             copyBtn.innerHTML = "复制";
-            copyBtn.setAttribute("code", el.innerHTML);
+            copyBtn.setAttribute("code", el.innerText);
             copyBtn.addEventListener("click", (e) => {
                 copyCode(e);
             });
@@ -409,11 +413,11 @@ async function hljsInit() {
  */
 function addCodeNum(dom: any) {
     for (let i = 0; i < dom.length; i++) {
-        // 给每一行代码添加 li 包裹，形成整体 ul > li
-        dom[i].innerHTML =
-            "<ol><li>" +
-            dom[i].innerHTML.replace(/\n/g, "\n</li><li>") +
-            "\n</li></ol>";
+        const enter = dom[i].innerHTML.replace(/\n/g, "</li><li>");
+        dom[i].innerHTML = `<ol><li>${enter}</li></ol>`.replace(
+            "<li></li></ol>",
+            "</ol>"
+        );
     }
 }
 
