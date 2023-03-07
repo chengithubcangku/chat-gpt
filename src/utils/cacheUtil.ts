@@ -17,8 +17,8 @@ function read() {
     const cache = JSON.parse(
         window.localStorage.getItem("n0ts-chatgpt-config") ?? "{}"
     );
-    if (cache.model) {
-        config.model = cache.model;
+    if (cache.key) {
+        config.key = cache.key;
         config.data = cache.data;
         config.system = cache.system;
         return config;

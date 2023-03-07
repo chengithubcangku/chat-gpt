@@ -9,7 +9,7 @@
 import { ref } from "vue";
 
 export default {
-    model: "",
+    key: "",
     data: {
         model: "gpt-3.5-turbo"
     },

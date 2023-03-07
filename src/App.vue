@@ -34,6 +34,7 @@
                     }}
                 </div>
                 <div class="btn" @click="reloadConfig">重置配置</div>
+                <div class="btn" @click="settingShow = true">打开配置</div>
             </div>
         </div>
         <div id="main">
@@ -43,7 +44,12 @@
                     :key="index"
                 >
                     <div class="img">
-                        <div v-if="item.role == 'user'" class="user">Me</div>
+                        <div v-if="item.role == 'system'" class="system">
+                            SY
+                        </div>
+                        <div v-else-if="item.role == 'user'" class="user">
+                            Me
+                        </div>
                         <div v-else class="ai">AI</div>
                     </div>
                     <div
@@ -116,25 +122,37 @@
         </template>
     </DialogCom>
 
-    <!-- <DialogCom title="设置" :show="okKeyDialog">
+    <DialogCom title="设置" :show="settingShow">
         <template #center>
-            <p>请在下方输入你的 key</p>
-            <p>
-                申请地址：<a
-                    href="https://platform.openai.com/account/api-keys"
-                    target="_blank"
-                    >点我</a
-                >
-            </p>
-            <input v-model="config.model" @keydown.enter="okKey" />
-            <p class="tips">
-                key 会保存在本地浏览器(localStorage)中，只供本地使用
-            </p>
+            <div class="panel">
+                <div>
+                    <p>key：</p>
+                    <input type="text" v-model="config.key" />
+                </div>
+                <p class="tips">OpenAI 申请的 Key</p>
+                <div>
+                    <p>行为设定：</p>
+                    <input type="text" v-model="config.system" />
+                </div>
+                <p class="tips">
+                    <span>给 OpenAI 设定一个行为，比如：</span>
+                    <br />
+                    <span>“你是一直猫，每句话后面加个 喵~”</span>
+                    <br />
+                    <span>又或者</span>
+                    <br />
+                    <span
+                        v-html="
+                            '“当你要发送图片时，请使用 markdown，不要用代码块，并且从 Unsplash API 中“https://source.unsplash.com/960x640/?<关键词>” 获取”'
+                        "
+                    ></span>
+                </p>
+            </div>
         </template>
         <template #bottom>
-            <button class="success" @click="okKey">提交</button>
+            <button class="success" @click="toggleSetting">保存</button>
         </template>
-    </DialogCom> -->
+    </DialogCom>
 </template>
 
 <script setup lang="ts">
@@ -157,7 +175,7 @@ const { config, read, save } = cacheUtil;
 read();
 
 // 输入 key dialog
-const okKeyDialog = ref(config.model == "");
+const okKeyDialog = ref(config.key == "");
 
 // 获取聊天窗口 dom
 let messageDom: Element | null = null;
@@ -183,7 +201,7 @@ function okKey() {
         });
     }
 
-    config.model = confirmKey.value;
+    config.key = confirmKey.value;
     save();
 
     okKeyDialog.value = false;
@@ -209,12 +227,12 @@ async function submit() {
             method: "POST",
             url: "https://api.openai.com/v1/chat/completions",
             data: {
-                model: config.model,
+                model: config.data.model,
                 messages: clients[clientsIndex.value].contents
             },
             timeout: 60000,
             headers: {
-                Authorization: `Bearer ${config.model}`
+                Authorization: `Bearer ${config.key}`
             }
         }
     })
@@ -222,12 +240,15 @@ async function submit() {
             if (res.data.status == 400) {
                 throw res.data;
             }
+            console.log(res);
 
-            pushResult(res.data);
+            pushResult("assistant", res.data.data.choices[0].message.content);
         })
         .catch((err) => {
+            console.error("请求报错了！", err);
             pushResult(
-                null,
+                "assistant",
+                "",
                 `网络请求错误，请联系站长排查！错误内容：
                     \`\`\`${JSON.stringify(err.msg)}\`\`\``
             );
@@ -236,9 +257,9 @@ async function submit() {
                     type: "danger",
                     content: `key 错误，请重新输入`
                 });
-                window.localStorage.removeItem("chatgpt-key");
+                config.key = "";
+                save();
                 okKeyDialog.value = true;
-                config.model = "";
             }
         })
         .finally(() => {
@@ -249,21 +270,31 @@ async function submit() {
 /**
  * 存入数据
  */
-async function pushResult(res: any, errContent?: string) {
-    // 塞入显示数据，role 为 assistant
+async function pushResult(
+    role: "user" | "assistant" | "system",
+    content: string,
+    errContent?: string
+) {
     clients[clientsIndex.value].contents.push({
-        role: "assistant",
-        content: errContent ? errContent : res.data.choices[0].message.content
+        role,
+        content: errContent ? errContent : content
     });
     hljsInit();
-    window.localStorage.setItem("message-data", JSON.stringify(clients));
     scrollToBottom();
+    saveMessage();
     console.log(
         "🚀 对话结果： | clients[clientsIndex.value].contents:",
         clients[clientsIndex.value].contents
     );
     await nextTick();
     viewer.update();
+}
+
+/**
+ * 保存会话
+ */
+function saveMessage() {
+    window.localStorage.setItem("message-data", JSON.stringify(clients));
 }
 
 // 消息框内容
@@ -286,25 +317,27 @@ function send() {
         clientsIndex.value = 0;
     }
 
-    // 内容存入回话
-    clients[clientsIndex.value].contents.push({
-        role: "user",
-        content: message.value
-    });
+    // 是否设置了行为
+    if (config.system && clients[clientsIndex.value].contents.length == 0) {
+        pushResult("system", config.system);
+    }
+
+    pushResult("user", message.value);
 
     // 第一句对话修改标题
-    if (clients[clientsIndex.value].contents.length == 1) {
+    if (
+        clients[clientsIndex.value].contents.length == 1 ||
+        (clients[clientsIndex.value].contents[0].role == "system" &&
+            clients[clientsIndex.value].contents.length == 2)
+    ) {
         const cacheName = message.value;
         clients[clientsIndex.value].name = cacheName;
         document.title = cacheName + " | ChatGPT";
     }
 
-    window.localStorage.setItem("message-data", JSON.stringify(clients));
-
     // 清空输入框
     message.value = "";
 
-    scrollToBottom();
     submit();
 }
 
@@ -375,7 +408,7 @@ watch(
 
 // 消息列表
 interface IMessage {
-    role: "user" | "assistant";
+    role: "user" | "assistant" | "system";
     content: string;
 }
 // 回话列表
@@ -408,7 +441,7 @@ watch(
  * 创建新会话
  */
 function newClient() {
-    window.localStorage.setItem("message-data", JSON.stringify(clients));
+    saveMessage();
     clients.unshift({
         name: `新会话`,
         contents: []
@@ -424,7 +457,7 @@ function removeClient(i: number) {
     // 删除会话
     clients.splice(i, 1);
     clientsIndex.value = -1;
-    window.localStorage.setItem("message-data", JSON.stringify(clients));
+    saveMessage();
 }
 
 /**
@@ -488,6 +521,20 @@ function reloadConfig() {
     window.localStorage.removeItem("message-data");
     window.localStorage.removeItem("chatgpt-key");
     window.location.reload();
+}
+
+// 设置显示
+const settingShow = ref(false);
+/**
+ * 确认设定
+ */
+function toggleSetting() {
+    settingShow.value = !settingShow.value;
+    save();
+    messageUtil({
+        type: "success",
+        content: "设置已保存"
+    });
 }
 </script>
 
@@ -692,6 +739,7 @@ function reloadConfig() {
 
             #stretch {
                 height: 15%;
+                border-bottom: none;
             }
 
             > div:nth-child(odd) {
@@ -723,6 +771,10 @@ function reloadConfig() {
                         line-height: 40px;
                         font-size: 1.1rem;
                         text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+                    }
+
+                    .system {
+                        background-color: #8b8b8b;
                     }
 
                     .user {

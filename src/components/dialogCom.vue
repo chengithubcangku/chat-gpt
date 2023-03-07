@@ -76,6 +76,21 @@ const props = defineProps<{
             .tips {
                 font-size: 0.8rem;
                 color: gray;
+                margin-bottom: 10px;
+            }
+
+            .panel {
+                > div {
+                    width: 100%;
+                    display: flex;
+                    justify-content: center;
+                    margin-bottom: 5px;
+
+                    p {
+                        width: 5rem;
+                        text-align: right;
+                    }
+                }
             }
         }
 
