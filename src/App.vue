@@ -57,10 +57,7 @@
                 </div>
                 <div v-if="loading">
                     <div class="img">
-                        <img
-                            src="https://chat.openai.com/apple-touch-icon.png"
-                            alt="chatgpt"
-                        />
+                        <div class="ai">AI</div>
                     </div>
                     <div class="content loading"></div>
                 </div>
@@ -109,7 +106,7 @@
                     >点我</a
                 >
             </p>
-            <input v-model="key" @keydown.enter="okKey" />
+            <input v-model="confirmKey" @keydown.enter="okKey" />
             <p class="tips">
                 key 会保存在本地浏览器(localStorage)中，只供本地使用
             </p>
@@ -118,6 +115,26 @@
             <button class="success" @click="okKey">提交</button>
         </template>
     </DialogCom>
+
+    <!-- <DialogCom title="设置" :show="okKeyDialog">
+        <template #center>
+            <p>请在下方输入你的 key</p>
+            <p>
+                申请地址：<a
+                    href="https://platform.openai.com/account/api-keys"
+                    target="_blank"
+                    >点我</a
+                >
+            </p>
+            <input v-model="config.model" @keydown.enter="okKey" />
+            <p class="tips">
+                key 会保存在本地浏览器(localStorage)中，只供本地使用
+            </p>
+        </template>
+        <template #bottom>
+            <button class="success" @click="okKey">提交</button>
+        </template>
+    </DialogCom> -->
 </template>
 
 <script setup lang="ts">
@@ -131,12 +148,16 @@ import Clipboard from "clipboard";
 import Viewer from "viewerjs";
 import "viewerjs/dist/viewer.css";
 import themeUtil from "@/utils/themeUtil";
+import MathJax from "@/utils/mathJaxUtil";
+import cacheUtil from "@/utils/cacheUtil";
 
-// key
-const cacheKey = window.localStorage.getItem("chatgpt-key");
-const key = ref(cacheKey ? cacheKey : "");
+const { config, read, save } = cacheUtil;
+
+// 读取配置
+read();
+
 // 输入 key dialog
-const okKeyDialog = ref(key.value == "");
+const okKeyDialog = ref(config.model == "");
 
 // 获取聊天窗口 dom
 let messageDom: Element | null = null;
@@ -147,20 +168,24 @@ onMounted(() => {
     viewer = new Viewer(document.querySelector("#main") as HTMLElement);
     messageDom = document.querySelector("#messages");
     themeUtil.load();
+    // MathJax.initMathjaxConfig();
 });
 
 /**
  * 确认 key
  */
+const confirmKey = ref("");
 function okKey() {
-    if (key.value == "") {
+    if (confirmKey.value == "") {
         return messageUtil({
             type: "warning",
             content: "key 不能为空"
         });
     }
 
-    window.localStorage.setItem("chatgpt-key", key.value);
+    config.model = confirmKey.value;
+    save();
+
     okKeyDialog.value = false;
     messageUtil({
         type: "success",
@@ -184,12 +209,12 @@ async function submit() {
             method: "POST",
             url: "https://api.openai.com/v1/chat/completions",
             data: {
-                model: "gpt-3.5-turbo",
+                model: config.model,
                 messages: clients[clientsIndex.value].contents
             },
             timeout: 60000,
             headers: {
-                Authorization: `Bearer ${key.value}`
+                Authorization: `Bearer ${config.model}`
             }
         }
     })
@@ -213,7 +238,7 @@ async function submit() {
                 });
                 window.localStorage.removeItem("chatgpt-key");
                 okKeyDialog.value = true;
-                key.value = "";
+                config.model = "";
             }
         })
         .finally(() => {
@@ -224,7 +249,7 @@ async function submit() {
 /**
  * 存入数据
  */
-function pushResult(res: any, errContent?: string) {
+async function pushResult(res: any, errContent?: string) {
     // 塞入显示数据，role 为 assistant
     clients[clientsIndex.value].contents.push({
         role: "assistant",
@@ -237,6 +262,8 @@ function pushResult(res: any, errContent?: string) {
         "🚀 对话结果： | clients[clientsIndex.value].contents:",
         clients[clientsIndex.value].contents
     );
+    await nextTick();
+    viewer.update();
 }
 
 // 消息框内容
@@ -372,6 +399,7 @@ watch(
             scrollToBottom();
             await nextTick();
             viewer.update();
+            // MathJax.TypeSet();
         }
     }
 );
