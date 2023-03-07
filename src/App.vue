@@ -71,8 +71,10 @@
             </div>
             <div v-else id="home">
                 <div>
-                    <p>ChatGPT By:N0ts</p>
+                    <p>ChatGPT 复刻版</p>
                     <div class="content">
+                        <p>瞎写一通，功能简单所以代码较臭</p>
+                        <p>本项目纯前端自娱自乐，不会保存任何数据</p>
                         <p>
                             开源地址（求 star）：<a
                                 href="https://gitee.com/n0ts/chat-gpt"
@@ -80,8 +82,6 @@
                                 >Gitee</a
                             >
                         </p>
-                        <p>瞎写一通，功能简单所以代码较臭</p>
-                        <p>本项目纯前端自娱自乐，不会保存任何数据</p>
                         <p>
                             技术交流：<a
                                 href="https://jq.qq.com/?_wv=1027&k=Mh7ah6Dd"
