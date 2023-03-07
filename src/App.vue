@@ -718,7 +718,7 @@ function reloadConfig() {
                     display: block;
                     width: 8px;
                     height: 14px;
-                    background-color: white;
+                    background-color: var(--text-color);
                     animation: flicker 0.8s infinite ease-in-out;
                 }
 
