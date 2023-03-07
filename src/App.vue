@@ -10,7 +10,6 @@
         <div id="sidebar" :class="{ sideBarShow: sideBarShow }">
             <div id="chats">
                 <div class="btn" @click="newClient">新建会话</div>
-                <div class="btn" @click="reloadConfig">重置配置</div>
                 <div class="list">
                     <div
                         v-for="(item, index) in clients"
@@ -26,6 +25,16 @@
             <div id="showBtn" @click="sideBarShow = !sideBarShow">
                 {{ sideBarShow ? "收起" : "展开" }}
             </div>
+            <div id="bottom">
+                <div class="btn" @click="themeUtil.switchTheme">
+                    {{
+                        themeUtil.themeCache.value == "light"
+                            ? "暗色模式"
+                            : "亮色模式"
+                    }}
+                </div>
+                <div class="btn" @click="reloadConfig">重置配置</div>
+            </div>
         </div>
         <div id="main">
             <div id="messages" v-if="clients[clientsIndex]">
@@ -34,12 +43,8 @@
                     :key="index"
                 >
                     <div class="img">
-                        <img
-                            v-if="item.role == 'user'"
-                            src="@/assets/user.webp"
-                            alt="You"
-                        />
-                        <img v-else src="@/assets/logo.png" alt="chatgpt" />
+                        <div v-if="item.role == 'user'" class="user">Me</div>
+                        <div v-else class="ai">AI</div>
                     </div>
                     <div
                         class="content"
@@ -123,12 +128,26 @@ import messageUtil from "@/utils/messageUtil";
 import { marked } from "marked";
 import hljs from "highlight.js";
 import Clipboard from "clipboard";
+import Viewer from "viewerjs";
+import "viewerjs/dist/viewer.css";
+import themeUtil from "@/utils/themeUtil";
 
 // key
 const cacheKey = window.localStorage.getItem("chatgpt-key");
 const key = ref(cacheKey ? cacheKey : "");
 // 输入 key dialog
 const okKeyDialog = ref(key.value == "");
+
+// 获取聊天窗口 dom
+let messageDom: Element | null = null;
+// Viewer
+let viewer: any = null;
+
+onMounted(() => {
+    viewer = new Viewer(document.querySelector("#main") as HTMLElement);
+    messageDom = document.querySelector("#messages");
+    themeUtil.load();
+});
 
 /**
  * 确认 key
@@ -262,12 +281,6 @@ function send() {
     submit();
 }
 
-// 获取聊天窗口 dom
-let messageDom: Element | null = null;
-onMounted(() => {
-    messageDom = document.querySelector("#messages");
-});
-
 /**
  * 滚动到底部
  */
@@ -352,11 +365,13 @@ const clientsIndex = ref(-1);
 // 会话索引切换
 watch(
     () => clientsIndex.value,
-    () => {
+    async () => {
         if (clients[clientsIndex.value]) {
             document.title = clients[clientsIndex.value].name + " | ChatGPT";
             hljsInit();
             scrollToBottom();
+            await nextTick();
+            viewer.update();
         }
     }
 );
@@ -449,14 +464,13 @@ function reloadConfig() {
 </script>
 
 <style scoped lang="less">
-@import "@/assets/css/markdown.less";
 @import url("https://cdn.bootcdn.net/ajax/libs/firacode/6.2.0/fira_code.min.css");
 
 #chatgpt {
     height: 100%;
     display: flex;
-    background-color: #343540;
-    color: white;
+    background-color: var(--background-color-1);
+    color: var(--text-color);
     font-size: 0.9rem;
 
     > div {
@@ -471,23 +485,22 @@ function reloadConfig() {
         left: 0;
         top: 0;
         z-index: 1;
+        color: white;
+
+        .btn {
+            border: 1px solid #ffffff33;
+            padding: 10px 0 10px 30px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+
+            &:hover {
+                background-color: #2b2c2f;
+            }
+        }
 
         #chats {
             padding: 10px;
-
-            div {
-                border-radius: 5px;
-            }
-
-            .btn {
-                border: 1px solid #ffffff33;
-                padding: 10px 0 10px 30px;
-                margin-bottom: 10px;
-
-                &:hover {
-                    background-color: #2b2c2f;
-                }
-            }
 
             .list {
                 margin-top: 10px;
@@ -497,6 +510,7 @@ function reloadConfig() {
                     overflow: hidden;
                     margin-bottom: 10px;
                     position: relative;
+                    border-radius: 5px;
 
                     p {
                         text-overflow: ellipsis;
@@ -551,6 +565,20 @@ function reloadConfig() {
             user-select: none;
             visibility: hidden;
         }
+
+        #bottom {
+            border-top: 1px solid #ffffff33;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 10px 10px 0;
+            box-sizing: border-box;
+
+            .btn {
+                border: none;
+            }
+        }
     }
 
     .sideBarShow {
@@ -570,8 +598,8 @@ function reloadConfig() {
             justify-content: center;
             background-image: linear-gradient(
                 to bottom,
-                rgba(52, 53, 64, 0.05),
-                #343540 40%
+                transparent,
+                var(--background-color-2) 40%
             );
             padding-top: 50px;
             box-sizing: border-box;
@@ -583,12 +611,12 @@ function reloadConfig() {
                 transform: translateX(-50%);
                 width: 80%;
                 border-radius: 6px;
-                border: 1px solid #343540;
-                background: #40414e;
+                border: 1px solid var(--background-color-1);
+                background: var(--background-color-1);
                 outline: none;
                 resize: none;
                 padding: 15px 20px;
-                color: white;
+                color: var(--text-color);
                 max-height: 150px;
                 overflow-y: auto;
                 box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
@@ -631,26 +659,26 @@ function reloadConfig() {
             &::-webkit-scrollbar-track {
                 box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.2);
                 border-radius: 10px;
-                background: #343540;
+                background: var(--background-color-1);
             }
 
             #stretch {
                 height: 15%;
-                background-color: #34353f;
             }
 
             > div:nth-child(odd) {
-                background-color: #343540;
+                background-color: var(--background-color-1);
             }
 
             > div:nth-child(even) {
-                background-color: #444653;
+                background-color: var(--background-color-2);
             }
 
             > div {
                 padding: 20px 100px;
                 display: flex;
                 flex-wrap: nowrap;
+                border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 
                 .img {
                     border-radius: 5px;
@@ -658,11 +686,23 @@ function reloadConfig() {
                     width: 40px;
                     height: 40px;
                     overflow: hidden;
+                    user-select: none;
+                    color: white;
 
-                    img {
-                        width: 100%;
+                    div {
                         height: 100%;
-                        object-fit: cover;
+                        text-align: center;
+                        line-height: 40px;
+                        font-size: 1.1rem;
+                        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+                    }
+
+                    .user {
+                        background-color: #81679f;
+                    }
+
+                    .ai {
+                        background-color: #679f92;
                     }
                 }
             }
