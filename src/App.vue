@@ -777,6 +777,7 @@ function reloadConfig() {
                 > p {
                     font-size: 2rem;
                     margin-bottom: 20px;
+                    color: var(--text-color);
                 }
 
                 .content {
