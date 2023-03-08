@@ -168,6 +168,7 @@ import "viewerjs/dist/viewer.css";
 import themeUtil from "@/utils/themeUtil";
 import MathJax from "@/utils/mathJaxUtil";
 import cacheUtil from "@/utils/cacheUtil";
+import AxiosStream from "axios-stream";
 
 const { config, read, save } = cacheUtil;
 
@@ -219,52 +220,81 @@ const loading = ref(false);
  */
 async function submit() {
     loading.value = true;
-    await axios({
-        method: "post",
-        url: "https://node.fatshady.cn/cors",
-        timeout: 600000,
-        data: {
-            method: "POST",
-            url: "https://api.openai.com/v1/chat/completions",
-            data: {
-                model: config.data.model,
-                messages: clients[clientsIndex.value].contents
-            },
-            timeout: 60000,
-            headers: {
-                Authorization: `Bearer ${config.key}`
-            }
-        }
-    })
-        .then((res: any) => {
-            if (res.data.status == 400) {
-                throw res.data;
-            }
-            console.log(res);
 
-            pushResult("assistant", res.data.data.choices[0].message.content);
-        })
-        .catch((err) => {
-            console.error("请求报错了！", err);
-            pushResult(
-                "assistant",
-                "",
-                `网络请求错误，请联系站长排查！错误内容：
-                    \`\`\`${JSON.stringify(err.msg)}\`\`\``
-            );
-            if (err.msg?.error?.code == "invalid_api_key") {
-                messageUtil({
-                    type: "danger",
-                    content: `key 错误，请重新输入`
-                });
-                config.key = "";
-                save();
-                okKeyDialog.value = true;
+    fetch("https://node.fatshady.cn/chatgpt-stream", {
+        method: "POST",
+        body: JSON.stringify({
+            key: config.key,
+            model: config.data.model,
+            messages: clients[clientsIndex.value].contents,
+            timeout: 60000
+        }),
+        headers: {
+            "Content-Type": "application/json"
+        }
+    }).then((res: any) => {
+        // 读取 stream 数据
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+
+        reader.read().then(function processText(res: any) {
+            if (res.done) {
+                console.log("Stream complete");
+                return;
             }
-        })
-        .finally(() => {
-            loading.value = false;
+
+            // value for fetch streams is a Uint8Array
+            console.log(decoder.decode(res.value));
+            // Read some more, and call this function again
+            return reader.read().then(processText);
         });
+    });
+
+    // axios({
+    //     method: "post",
+    //     url: "https://node.fatshady.cn/chatgpt-stream",
+    //     timeout: 600000,
+    //     data: {
+    //         key: config.key,
+    //         model: config.data.model,
+    //         messages: clients[clientsIndex.value].contents,
+    //         timeout: 60000
+    //     },
+    //     responseType: "stream"
+    // })
+    //     .then((res: any) => {
+    //         console.log("res", res);
+    //         res.on("data", (chunk: any) => {
+    //             console.log(chunk);
+    //         });
+
+    //         // if (res.data.status == 400) {
+    //         //     throw res.data;
+    //         // }
+    //         // console.log(res);
+    //         // pushResult("assistant", res.data.data.choices[0].message.content);
+    //     })
+    //     .catch((err) => {
+    //         // console.error("请求报错了！", err);
+    //         // pushResult(
+    //         //     "assistant",
+    //         //     "",
+    //         //     `网络请求错误，请联系站长排查！错误内容：
+    //         //         \`\`\`${JSON.stringify(err.msg)}\`\`\``
+    //         // );
+    //         // if (err.msg?.error?.code == "invalid_api_key") {
+    //         //     messageUtil({
+    //         //         type: "danger",
+    //         //         content: `key 错误，请重新输入`
+    //         //     });
+    //         //     config.key = "";
+    //         //     save();
+    //         //     okKeyDialog.value = true;
+    //         // }
+    //     })
+    //     .finally(() => {
+    //         loading.value = false;
+    //     });
 }
 
 /**
