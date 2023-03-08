@@ -519,7 +519,8 @@ function copyCode(el: MouseEvent) {
  */
 function reloadConfig() {
     window.localStorage.removeItem("message-data");
-    window.localStorage.removeItem("chatgpt-key");
+    window.localStorage.removeItem("n0ts-chatgpt-theme");
+    window.localStorage.removeItem("n0ts-chatgpt-config");
     window.location.reload();
 }
 
