@@ -60,7 +60,12 @@
                     </div>
                     <div
                         class="content"
-                        :class="{ end: !loading }"
+                        :class="{
+                            end:
+                                !loading ||
+                                index !=
+                                    clients[clientsIndex].contents.length - 1
+                        }"
                         v-html="item.content"
                     ></div>
                 </div>
@@ -206,6 +211,7 @@ function okKey() {
     }
 
     config.key = confirmKey.value;
+    confirmKey.value = "";
     save();
 
     okKeyDialog.value = false;
@@ -246,18 +252,23 @@ async function submit() {
 
             reader.read().then(async function processText(res: any) {
                 if (res.done) {
-                    console.log("Stream complete");
                     return;
                 }
 
                 const decodeContent = decoder.decode(res.value);
+
+                // error
+                if (decodeContent.includes("未知错误，请联系站长解决！")) {
+                    loading.value = false;
+                    return errorHandle(decodeContent);
+                }
+
+                // done
                 if (decodeContent.includes("data: [DONE]")) {
-                    console.log("Stream complete");
                     loading.value = false;
                     saveMessage();
-                    hljsInit();
-                    scrollToBottom();
                     await nextTick();
+                    hljsInit();
                     viewer.update();
                     return;
                 }
@@ -266,9 +277,8 @@ async function submit() {
                     .replaceAll("data: ", "")
                     .split("\n")
                     .filter(Boolean)
-                    .forEach((item: string) => {
+                    .forEach(async (item: string) => {
                         const itemObj = JSON.parse(item);
-                        console.log("stream push", itemObj);
                         if (itemObj.choices[0].delta.content) {
                             streamCache += itemObj.choices[0].delta.content;
 
@@ -276,8 +286,8 @@ async function submit() {
                                 clients[clientsIndex.value].contents.length - 1
                             ].content = marked.parse(streamCache);
 
+                            await nextTick();
                             hljsInit();
-                            scrollToBottom();
                         }
                     });
 
@@ -301,14 +311,9 @@ async function pushResult(
         role,
         content: errContent ? errContent : content
     });
-    hljsInit();
-    scrollToBottom();
     saveMessage();
-    console.log(
-        "🚀 对话结果： | clients[clientsIndex.value].contents:",
-        clients[clientsIndex.value].contents
-    );
     await nextTick();
+    hljsInit();
     viewer.update();
 }
 
@@ -373,24 +378,32 @@ function send() {
 /**
  * 滚动到底部
  */
-async function scrollToBottom() {
-    await nextTick();
-    messageDom = document.querySelector("#messages");
-    if (messageDom) {
-        const childrens = messageDom.children;
-        // let height = 0;
-        // if (childrens[childrens.length - 1]) {
-        //     height += childrens[childrens.length - 1].clientHeight;
-        // }
-        // if (childrens[childrens.length - 2]) {
-        //     height += childrens[childrens.length - 2].clientHeight;
-        // }
-        messageDom.scrollTo({
-            top: messageDom.scrollHeight
-        });
-    } else {
-        scrollToBottom();
+let scrollLock = false;
+function scrollToBottom() {
+    if (scrollLock) {
+        return;
     }
+    scrollLock = true;
+    setTimeout(() => {
+        scrollLock = false;
+        messageDom = document.querySelector("#messages");
+        if (messageDom) {
+            // const childrens = messageDom.children;
+            // let height = 0;
+            // if (childrens[childrens.length - 1]) {
+            //     height += childrens[childrens.length - 1].clientHeight;
+            // }
+            // if (childrens[childrens.length - 2]) {
+            //     height += childrens[childrens.length - 2].clientHeight;
+            // }
+            messageDom.scrollTo({
+                top: messageDom.scrollHeight,
+                behavior: "smooth"
+            });
+        } else {
+            scrollToBottom();
+        }
+    }, 300);
 }
 
 // shift 是否按住
@@ -457,10 +470,10 @@ watch(
     async () => {
         if (clients[clientsIndex.value]) {
             document.title = clients[clientsIndex.value].name + " | 🤪ChatGPT";
-            hljsInit();
-            scrollToBottom();
             await nextTick();
+            hljsInit();
             viewer.update();
+
             // MathJax.TypeSet();
         }
     }
@@ -500,7 +513,6 @@ function removeClient(i: number) {
  * 代码高亮
  */
 async function hljsInit() {
-    await nextTick();
     const dom: any = [];
     document.querySelectorAll("#messages pre code").forEach((el1: Element) => {
         const el = el1 as HTMLElement;
@@ -518,6 +530,7 @@ async function hljsInit() {
         }
     });
     addCodeNum(dom);
+    scrollToBottom();
 }
 
 /**
@@ -598,6 +611,29 @@ async function getMoeny() {
  */
 function moneyToFixed(num: any, fixed: number) {
     return Number(num.toFixed(fixed));
+}
+
+/**
+ * 错误处理
+ */
+function errorHandle(error: string) {
+    const errorObj = JSON.parse(
+        error.replace("未知错误，请联系站长解决！", "")
+    );
+    console.log(errorObj);
+    clients[clientsIndex.value].contents[
+        clients[clientsIndex.value].contents.length - 1
+    ].content = error;
+
+    if (errorObj.error.code == "invalid_api_key") {
+        messageUtil({
+            type: "danger",
+            content: "API Key 错误，请重新配置"
+        });
+        config.key = "";
+        save();
+        okKeyDialog.value = true;
+    }
 }
 </script>
 

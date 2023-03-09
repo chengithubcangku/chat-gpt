@@ -1,12 +1,20 @@
-# chatgpt
+# ChatGPT
 
 ## 介绍
 
-基于 gpt-3.5-turbo 的 ChatGPT 在线聊天小玩意
+🤪 ChatGPT 基于 gpt-3.5-turbo 开发
 
-纯前端项目，数据存储在 localstorage 中
+本项目纯前端自娱自乐，数据仅在 localStorage 中读取
+
+国内随意访问，解决 api 无法访问问题
+
+瞎写一通，功能简单所以代码较臭
+
+技术交流：[坚果小栈](https://jq.qq.com/?_wv=1027&k=Mh7ah6Dd)
 
 预览：[ChatGPT](https://chatgpt.n0ts.cn/)
+
+
 
 ## 使用
 
@@ -26,6 +34,8 @@ yarn build
 ```
 
 打包后则可在 `dist` 文件夹看到打包后的文件，直接丢到服务器即可访问
+
+
 
 ## QQ 群讨论
 
