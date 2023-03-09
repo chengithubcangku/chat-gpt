@@ -8,33 +8,39 @@
 <template>
     <div id="chatgpt">
         <div id="sidebar" :class="{ sideBarShow: sideBarShow }">
-            <div id="chats">
-                <div class="btn" @click="newClient">新建会话</div>
-                <div class="list">
-                    <div
-                        v-for="(item, index) in clients"
-                        :key="index"
-                        @click="clientsIndex = index"
-                        :class="{ active: clientsIndex == index }"
-                    >
-                        <p>{{ item.name }}</p>
-                        <span @click.stop="removeClient(index)">删除</span>
-                    </div>
-                </div>
+            <div class="btns">
+                <div class="btn" @click="newClient">🤓 新建会话</div>
             </div>
-            <div id="showBtn" @click="sideBarShow = !sideBarShow">
-                {{ sideBarShow ? "收起" : "展开" }}
+            <div id="chats">
+                <div
+                    v-for="(item, index) in clients"
+                    :key="index"
+                    @click="clientsIndex = index"
+                    :class="{ active: clientsIndex == index }"
+                >
+                    <p>{{ item.name }}</p>
+                    <span @click.stop="removeClient(index)">🗑 删除</span>
+                </div>
             </div>
             <div id="bottom">
                 <div class="btn" @click="themeUtil.switchTheme">
                     {{
                         themeUtil.themeCache.value == "light"
-                            ? "暗色模式"
-                            : "亮色模式"
+                            ? "🌃 暗色模式"
+                            : "🌇 亮色模式"
                     }}
                 </div>
-                <div class="btn" @click="reloadConfig">重置配置</div>
-                <div class="btn" @click="settingShow = true">打开配置</div>
+                <div class="btn" @click="settingShow = true">👐 打开配置</div>
+                <div class="btn" @click="reloadConfig">👊 重置配置</div>
+                <div class="money" v-if="moneyData">
+                    余额：{{
+                        moneyToFixed(moneyData.total_available, 2)
+                    }}
+                    $，已用：{{ moneyToFixed(moneyData.total_used, 2) }} $
+                </div>
+            </div>
+            <div id="showBtn" @click="sideBarShow = !sideBarShow">
+                {{ sideBarShow ? "👈" : "👉" }}
             </div>
         </div>
         <div id="main">
@@ -54,27 +60,21 @@
                     </div>
                     <div
                         class="content"
-                        v-if="item.role == 'assistant'"
-                        v-html="marked.parse(item.content)"
+                        :class="{ end: !loading }"
+                        v-html="item.content"
                     ></div>
-                    <div v-else class="content">
-                        <p>{{ item.content }}</p>
-                    </div>
-                </div>
-                <div v-if="loading">
-                    <div class="img">
-                        <div class="ai">AI</div>
-                    </div>
-                    <div class="content loading"></div>
                 </div>
                 <div id="stretch"></div>
             </div>
             <div v-else id="home">
                 <div>
-                    <p>ChatGPT 复刻版</p>
+                    <p>🤪 ChatGPT 基于 gpt-3.5-turbo 开发</p>
                     <div class="content">
+                        <p>
+                            本项目纯前端自娱自乐，数据仅在 localStorage 中读取
+                        </p>
+                        <p>国内随意访问，解决 api 无法访问问题</p>
                         <p>瞎写一通，功能简单所以代码较臭</p>
-                        <p>本项目纯前端自娱自乐，不会保存任何数据</p>
                         <p>
                             开源地址（求 star）：<a
                                 href="https://gitee.com/n0ts/chat-gpt"
@@ -168,7 +168,6 @@ import "viewerjs/dist/viewer.css";
 import themeUtil from "@/utils/themeUtil";
 import MathJax from "@/utils/mathJaxUtil";
 import cacheUtil from "@/utils/cacheUtil";
-import AxiosStream from "axios-stream";
 
 const { config, read, save } = cacheUtil;
 
@@ -187,6 +186,10 @@ onMounted(() => {
     viewer = new Viewer(document.querySelector("#main") as HTMLElement);
     messageDom = document.querySelector("#messages");
     themeUtil.load();
+
+    if (config.key) {
+        getMoeny();
+    }
     // MathJax.initMathjaxConfig();
 });
 
@@ -210,6 +213,8 @@ function okKey() {
         type: "success",
         content: "key 存储成功，开始提问吧"
     });
+
+    getMoeny();
 }
 
 // 是否正在加载
@@ -220,6 +225,7 @@ const loading = ref(false);
  */
 async function submit() {
     loading.value = true;
+    pushResult("assistant", "");
 
     fetch("https://node.fatshady.cn/chatgpt-stream", {
         method: "POST",
@@ -232,69 +238,55 @@ async function submit() {
         headers: {
             "Content-Type": "application/json"
         }
-    }).then((res: any) => {
-        // 读取 stream 数据
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder("utf-8");
+    })
+        .then((res: any) => {
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let streamCache = "";
 
-        reader.read().then(function processText(res: any) {
-            if (res.done) {
-                console.log("Stream complete");
-                return;
-            }
+            reader.read().then(async function processText(res: any) {
+                if (res.done) {
+                    console.log("Stream complete");
+                    return;
+                }
 
-            // value for fetch streams is a Uint8Array
-            console.log(decoder.decode(res.value));
-            // Read some more, and call this function again
-            return reader.read().then(processText);
+                const decodeContent = decoder.decode(res.value);
+                if (decodeContent.includes("data: [DONE]")) {
+                    console.log("Stream complete");
+                    loading.value = false;
+                    saveMessage();
+                    hljsInit();
+                    scrollToBottom();
+                    await nextTick();
+                    viewer.update();
+                    return;
+                }
+
+                decodeContent
+                    .replaceAll("data: ", "")
+                    .split("\n")
+                    .filter(Boolean)
+                    .forEach((item: string) => {
+                        const itemObj = JSON.parse(item);
+                        console.log("stream push", itemObj);
+                        if (itemObj.choices[0].delta.content) {
+                            streamCache += itemObj.choices[0].delta.content;
+
+                            clients[clientsIndex.value].contents[
+                                clients[clientsIndex.value].contents.length - 1
+                            ].content = marked.parse(streamCache);
+
+                            hljsInit();
+                            scrollToBottom();
+                        }
+                    });
+
+                return reader.read().then(processText);
+            });
+        })
+        .catch(() => {
+            loading.value = false;
         });
-    });
-
-    // axios({
-    //     method: "post",
-    //     url: "https://node.fatshady.cn/chatgpt-stream",
-    //     timeout: 600000,
-    //     data: {
-    //         key: config.key,
-    //         model: config.data.model,
-    //         messages: clients[clientsIndex.value].contents,
-    //         timeout: 60000
-    //     },
-    //     responseType: "stream"
-    // })
-    //     .then((res: any) => {
-    //         console.log("res", res);
-    //         res.on("data", (chunk: any) => {
-    //             console.log(chunk);
-    //         });
-
-    //         // if (res.data.status == 400) {
-    //         //     throw res.data;
-    //         // }
-    //         // console.log(res);
-    //         // pushResult("assistant", res.data.data.choices[0].message.content);
-    //     })
-    //     .catch((err) => {
-    //         // console.error("请求报错了！", err);
-    //         // pushResult(
-    //         //     "assistant",
-    //         //     "",
-    //         //     `网络请求错误，请联系站长排查！错误内容：
-    //         //         \`\`\`${JSON.stringify(err.msg)}\`\`\``
-    //         // );
-    //         // if (err.msg?.error?.code == "invalid_api_key") {
-    //         //     messageUtil({
-    //         //         type: "danger",
-    //         //         content: `key 错误，请重新输入`
-    //         //     });
-    //         //     config.key = "";
-    //         //     save();
-    //         //     okKeyDialog.value = true;
-    //         // }
-    //     })
-    //     .finally(() => {
-    //         loading.value = false;
-    //     });
 }
 
 /**
@@ -361,7 +353,14 @@ function send() {
             clients[clientsIndex.value].contents.length == 2)
     ) {
         const cacheName = message.value;
-        clients[clientsIndex.value].name = cacheName;
+        let num = 1;
+        clients.forEach((item) => {
+            if (item.name.indexOf(cacheName) == 0) {
+                num++;
+            }
+        });
+        clients[clientsIndex.value].name =
+            cacheName + (num == 1 ? "" : ` #${num}`);
         document.title = cacheName + " | ChatGPT";
     }
 
@@ -379,15 +378,15 @@ async function scrollToBottom() {
     messageDom = document.querySelector("#messages");
     if (messageDom) {
         const childrens = messageDom.children;
-        let height = 0;
-        if (childrens[childrens.length - 1]) {
-            height += childrens[childrens.length - 1].clientHeight;
-        }
-        if (childrens[childrens.length - 2]) {
-            height += childrens[childrens.length - 2].clientHeight;
-        }
+        // let height = 0;
+        // if (childrens[childrens.length - 1]) {
+        //     height += childrens[childrens.length - 1].clientHeight;
+        // }
+        // if (childrens[childrens.length - 2]) {
+        //     height += childrens[childrens.length - 2].clientHeight;
+        // }
         messageDom.scrollTo({
-            top: messageDom.scrollHeight - height
+            top: messageDom.scrollHeight
         });
     } else {
         scrollToBottom();
@@ -457,7 +456,7 @@ watch(
     () => clientsIndex.value,
     async () => {
         if (clients[clientsIndex.value]) {
-            document.title = clients[clientsIndex.value].name + " | ChatGPT";
+            document.title = clients[clientsIndex.value].name + " | 🤪ChatGPT";
             hljsInit();
             scrollToBottom();
             await nextTick();
@@ -472,8 +471,14 @@ watch(
  */
 function newClient() {
     saveMessage();
+    let num = 1;
+    clients.forEach((item) => {
+        if (item.name.indexOf("新会话") == 0) {
+            num++;
+        }
+    });
     clients.unshift({
-        name: `新会话`,
+        name: "新会话" + (num == 1 ? "" : ` #${num}`),
         contents: []
     });
     message.value = "";
@@ -485,6 +490,7 @@ function newClient() {
  */
 function removeClient(i: number) {
     // 删除会话
+    document.title = "🤪ChatGPT";
     clients.splice(i, 1);
     clientsIndex.value = -1;
     saveMessage();
@@ -567,6 +573,32 @@ function toggleSetting() {
         content: "设置已保存"
     });
 }
+
+/**
+ * 获取余额
+ */
+const moneyData: any = ref(null);
+async function getMoeny() {
+    const { data } = await axios({
+        method: "post",
+        url: "https://node.fatshady.cn/cors",
+        data: {
+            method: "GET",
+            url: "https://api.openai.com/dashboard/billing/credit_grants",
+            headers: {
+                authorization: `Bearer ${config.key}`
+            }
+        }
+    });
+    moneyData.value = data.data;
+}
+
+/**
+ * 保留两位
+ */
+function moneyToFixed(num: any, fixed: number) {
+    return Number(num.toFixed(fixed));
+}
 </script>
 
 <style scoped lang="less">
@@ -592,6 +624,12 @@ function toggleSetting() {
         top: 0;
         z-index: 1;
         color: white;
+        display: flex;
+        flex-direction: column;
+
+        .btns {
+            padding: 10px 10px 0;
+        }
 
         .btn {
             border: 1px solid #ffffff33;
@@ -599,6 +637,7 @@ function toggleSetting() {
             margin-bottom: 10px;
             border-radius: 5px;
             cursor: pointer;
+            user-select: none;
 
             &:hover {
                 background-color: #2b2c2f;
@@ -606,56 +645,69 @@ function toggleSetting() {
         }
 
         #chats {
-            padding: 10px;
+            overflow-y: scroll;
+            height: 100%;
 
-            .list {
-                margin-top: 10px;
+            &::-webkit-scrollbar {
+                width: 10px;
+                height: 1px;
+            }
 
-                > div {
-                    padding: 10px 0 10px 30px;
+            &::-webkit-scrollbar-thumb {
+                border-radius: 10px;
+                box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.2);
+                background: #444653;
+            }
+
+            &::-webkit-scrollbar-track {
+                box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.2);
+                border-radius: 10px;
+            }
+
+            > div {
+                padding: 10px 0 10px 30px;
+                overflow: hidden;
+                margin-bottom: 10px;
+                position: relative;
+                border-radius: 5px;
+
+                p {
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                    cursor: pointer;
                     overflow: hidden;
-                    margin-bottom: 10px;
-                    position: relative;
-                    border-radius: 5px;
+                    width: 70%;
+                }
 
-                    p {
-                        text-overflow: ellipsis;
-                        white-space: nowrap;
-                        cursor: pointer;
-                        overflow: hidden;
-                        width: 70%;
-                    }
-
-                    span {
-                        font-size: 0.8rem;
-                        color: gray;
-                        opacity: 0;
-                        visibility: hidden;
-                        position: absolute;
-                        right: 20px;
-                        top: 50%;
-                        transform: translate(10px, -50%);
-                        cursor: pointer;
-
-                        &:hover {
-                            color: red;
-                        }
-                    }
+                span {
+                    font-size: 0.8rem;
+                    color: gray;
+                    opacity: 0;
+                    visibility: hidden;
+                    position: absolute;
+                    right: 20px;
+                    top: 50%;
+                    transform: translate(10px, -50%);
+                    cursor: pointer;
 
                     &:hover {
-                        background-color: #2b2c2f;
-                    }
-
-                    &:hover span {
-                        opacity: 1;
-                        visibility: visible;
-                        transform: translate(0, -50%);
+                        color: red;
                     }
                 }
 
-                .active {
+                &:hover {
                     background-color: #2b2c2f;
                 }
+
+                &:hover span {
+                    opacity: 1;
+                    visibility: visible;
+                    transform: translate(0, -50%);
+                }
+            }
+
+            .active {
+                background-color: #2b2c2f;
             }
         }
 
@@ -674,15 +726,16 @@ function toggleSetting() {
 
         #bottom {
             border-top: 1px solid #ffffff33;
-            position: absolute;
-            bottom: 0;
-            left: 0;
             width: 100%;
             padding: 10px 10px 0;
             box-sizing: border-box;
 
             .btn {
                 border: none;
+            }
+
+            .money {
+                padding: 10px 5px;
             }
         }
     }
@@ -823,26 +876,29 @@ function toggleSetting() {
                 flex: 1;
             }
 
-            .loading {
-                &::after {
-                    content: "";
-                    display: block;
-                    width: 8px;
-                    height: 14px;
-                    background-color: var(--text-color);
-                    animation: flicker 0.8s infinite ease-in-out;
-                }
+            :deep(.content:last-child)
+                > :not(ol):not(ul):not(pre):last-child:after,
+            :deep(.content:last-child) > ol:last-child li:last-child:after,
+            :deep(.content:last-child) > pre:last-child code:after,
+            :deep(.content:last-child) > ul:last-child li:last-child:after {
+                content: "";
+                display: inline-block;
+                width: 8px;
+                height: 15px;
+                background-color: var(--text-color);
+                animation: blink 1s steps(5, start) infinite;
+                transform: translateY(3px);
+            }
 
-                @keyframes flicker {
-                    0% {
-                        opacity: 0;
-                    }
-                    50% {
-                        opacity: 1;
-                    }
-                    100% {
-                        opacity: 0;
-                    }
+            @keyframes blink {
+                to {
+                    visibility: hidden;
+                }
+            }
+
+            :deep(.end) * {
+                &::after {
+                    display: none !important;
                 }
             }
         }
