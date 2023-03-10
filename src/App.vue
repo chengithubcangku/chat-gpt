@@ -68,6 +68,9 @@
                         }"
                         v-html="item.content"
                     ></div>
+                    <div class="tokens">
+                        tokens：{{ item.tokens == 0 ? "..." : item.tokens }}
+                    </div>
                 </div>
                 <div id="stretch"></div>
             </div>
@@ -97,6 +100,7 @@
                 </div>
             </div>
             <div id="input">
+                <!-- <p>tokens 总和：{{ tokensCountNum }}</p> -->
                 <textarea
                     v-model="message"
                     @keydown="keydown"
@@ -171,7 +175,6 @@ import Clipboard from "clipboard";
 import Viewer from "viewerjs";
 import "viewerjs/dist/viewer.css";
 import themeUtil from "@/utils/themeUtil";
-import MathJax from "@/utils/mathJaxUtil";
 import cacheUtil from "@/utils/cacheUtil";
 
 const { config, read, save } = cacheUtil;
@@ -231,14 +234,18 @@ const loading = ref(false);
  */
 async function submit() {
     loading.value = true;
-    pushResult("assistant", "");
 
     fetch("https://node.fatshady.cn/chatgpt-stream", {
         method: "POST",
         body: JSON.stringify({
             key: config.key,
             model: config.data.model,
-            messages: clients[clientsIndex.value].contents,
+            messages: clients[clientsIndex.value].contents.map((item) => {
+                return {
+                    role: item.role,
+                    content: item.stream
+                };
+            }),
             timeout: 60000
         }),
         headers: {
@@ -246,6 +253,8 @@ async function submit() {
         }
     })
         .then((res: any) => {
+            pushResult("assistant", "");
+
             const reader = res.body.getReader();
             const decoder = new TextDecoder("utf-8");
             let streamCache = "";
@@ -258,7 +267,7 @@ async function submit() {
                 const decodeContent = decoder.decode(res.value);
 
                 // error
-                if (decodeContent.includes("未知错误，请联系站长解决！")) {
+                if (decodeContent.includes(`"error": {\n`)) {
                     loading.value = false;
                     return errorHandle(decodeContent);
                 }
@@ -266,6 +275,12 @@ async function submit() {
                 // done
                 if (decodeContent.includes("data: [DONE]")) {
                     loading.value = false;
+                    const client =
+                        clients[clientsIndex.value].contents[
+                            clients[clientsIndex.value].contents.length - 1
+                        ];
+                    client.tokens = await computedToken(client.content);
+
                     saveMessage();
                     await nextTick();
                     hljsInit();
@@ -279,16 +294,25 @@ async function submit() {
                     .filter(Boolean)
                     .forEach(async (item: string) => {
                         const itemObj = JSON.parse(item);
-                        if (itemObj.choices[0].delta.content) {
-                            streamCache += itemObj.choices[0].delta.content;
-
-                            clients[clientsIndex.value].contents[
-                                clients[clientsIndex.value].contents.length - 1
-                            ].content = marked.parse(streamCache);
-
-                            await nextTick();
-                            hljsInit();
+                        if (!itemObj.choices[0].delta.content) {
+                            return;
                         }
+                        const str = itemObj.choices[0].delta.content;
+                        // const pattern = /```/g;
+                        // const blockCodeArr = streamCache.match(pattern);
+                        // if (blockCodeArr && blockCodeArr.length > 0) {
+                        //     isBlockCode = Boolean(blockCodeArr.length % 2);
+                        // }
+                        streamCache += str;
+
+                        clients[clientsIndex.value].contents[
+                            clients[clientsIndex.value].contents.length - 1
+                        ].content = marked.parse(streamCache);
+                        clients[clientsIndex.value].contents[
+                            clients[clientsIndex.value].contents.length - 1
+                        ].stream = streamCache;
+                        await nextTick();
+                        hljsInit();
                     });
 
                 return reader.read().then(processText);
@@ -307,10 +331,15 @@ async function pushResult(
     content: string,
     errContent?: string
 ) {
-    clients[clientsIndex.value].contents.push({
+    const resultContent = errContent ? errContent : content;
+    const contentData = {
         role,
-        content: errContent ? errContent : content
-    });
+        content: resultContent,
+        tokens: 0,
+        stream: resultContent
+    };
+    clients[clientsIndex.value].contents.push(contentData);
+    contentData.tokens = await computedToken(contentData.content);
     saveMessage();
     await nextTick();
     hljsInit();
@@ -322,6 +351,7 @@ async function pushResult(
  */
 function saveMessage() {
     window.localStorage.setItem("message-data", JSON.stringify(clients));
+    tokensCount();
 }
 
 // 消息框内容
@@ -452,6 +482,8 @@ watch(
 interface IMessage {
     role: "user" | "assistant" | "system";
     content: string;
+    tokens: number;
+    stream: string;
 }
 // 回话列表
 interface IClient {
@@ -471,9 +503,9 @@ watch(
         if (clients[clientsIndex.value]) {
             document.title = clients[clientsIndex.value].name + " | 🤪ChatGPT";
             await nextTick();
+            tokensCount();
             hljsInit();
             viewer.update();
-
             // MathJax.TypeSet();
         }
     }
@@ -514,20 +546,21 @@ function removeClient(i: number) {
  */
 async function hljsInit() {
     const dom: any = [];
-    document.querySelectorAll("#messages pre code").forEach((el1: Element) => {
-        const el = el1 as HTMLElement;
-        if (!el.className.includes("hljs")) {
-            const copyBtn = document.createElement("div");
-            copyBtn.className = "copyBtn";
-            copyBtn.innerHTML = "复制";
-            copyBtn.setAttribute("code", el.innerText);
-            copyBtn.addEventListener("click", (e) => {
-                copyCode(e);
-            });
-            el.parentElement?.appendChild(copyBtn);
-            hljs.highlightElement(el);
-            dom.push(el);
+    const codeBlocks = document.querySelectorAll("#messages pre code");
+    codeBlocks.forEach((item) => {
+        if (item.getAttribute("class")?.includes("hljs")) {
+            return;
         }
+        const copyBtn = document.createElement("div");
+        copyBtn.className = "copyBtn";
+        copyBtn.innerHTML = "复制";
+        copyBtn.setAttribute("code", item.innerHTML);
+        copyBtn.addEventListener("click", (e) => {
+            copyCode(e);
+        });
+        item.parentElement?.appendChild(copyBtn);
+        hljs.highlightElement(item as HTMLElement);
+        dom.push(item);
     });
     addCodeNum(dom);
     scrollToBottom();
@@ -620,7 +653,7 @@ function errorHandle(error: string) {
     const errorObj = JSON.parse(
         error.replace("未知错误，请联系站长解决！", "")
     );
-    console.log(errorObj);
+    console.error("报错了哥们", errorObj);
     clients[clientsIndex.value].contents[
         clients[clientsIndex.value].contents.length - 1
     ].content = error;
@@ -634,6 +667,41 @@ function errorHandle(error: string) {
         save();
         okKeyDialog.value = true;
     }
+}
+
+/**
+ * token 计算
+ */
+async function computedToken(content: string) {
+    if (!content) {
+        return 0;
+    }
+    const { data } = await axios({
+        method: "GET",
+        url: "https://node.fatshady.cn/chatgpt/encoder",
+        params: {
+            content
+        }
+    });
+    if (data.status == 400) {
+        return 0;
+    }
+    return data.data.tokens / 2;
+}
+
+/**
+ * tokens 总和
+ */
+const tokensCountNum = ref(0);
+function tokensCount() {
+    if (!clients[clientsIndex.value]) {
+        return;
+    }
+    let count = 0;
+    clients[clientsIndex.value].contents.forEach((item) => {
+        count += item.tokens;
+    });
+    tokensCountNum.value = count;
 }
 </script>
 
@@ -834,6 +902,15 @@ function errorHandle(error: string) {
                     background: transparent;
                 }
             }
+
+            p {
+                position: absolute;
+                left: 50%;
+                bottom: 10%;
+                transform: translateX(-50%);
+                font-size: 0.8rem;
+                opacity: 0.5;
+            }
         }
 
         #messages {
@@ -871,10 +948,18 @@ function errorHandle(error: string) {
             }
 
             > div {
-                padding: 20px 100px;
+                padding: 25px 100px;
                 display: flex;
                 flex-wrap: nowrap;
                 border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+                position: relative;
+
+                .tokens {
+                    position: absolute;
+                    right: 20px;
+                    top: 10px;
+                    opacity: 0.4;
+                }
 
                 .img {
                     border-radius: 5px;
@@ -977,7 +1062,7 @@ function errorHandle(error: string) {
 
     #messages {
         > div {
-            padding: 20px 50px !important;
+            padding: 25px 50px !important;
         }
     }
 }
@@ -985,7 +1070,7 @@ function errorHandle(error: string) {
 @media screen and (max-width: 700px) {
     #messages {
         > div {
-            padding: 20px 20px !important;
+            padding: 25px 20px !important;
         }
     }
 
@@ -1000,7 +1085,7 @@ function errorHandle(error: string) {
 @media screen and (max-width: 450px) {
     #messages {
         > div {
-            padding: 10px !important;
+            padding: 25px 10px !important;
         }
     }
 }
