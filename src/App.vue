@@ -100,7 +100,7 @@
                 </div>
             </div>
             <div id="input">
-                <!-- <p>tokens 总和：{{ tokensCountNum }}</p> -->
+                <p>tokens 总和：{{ tokensCountNum }}</p>
                 <textarea
                     v-model="message"
                     @keydown="keydown"
@@ -234,6 +234,7 @@ const loading = ref(false);
  */
 async function submit() {
     loading.value = true;
+    pushResult("assistant", "");
 
     fetch("https://node.fatshady.cn/chatgpt-stream", {
         method: "POST",
@@ -253,8 +254,6 @@ async function submit() {
         }
     })
         .then((res: any) => {
-            pushResult("assistant", "");
-
             const reader = res.body.getReader();
             const decoder = new TextDecoder("utf-8");
             let streamCache = "";
@@ -339,7 +338,7 @@ async function pushResult(
         stream: resultContent
     };
     clients[clientsIndex.value].contents.push(contentData);
-    contentData.tokens = await computedToken(contentData.content);
+    contentData.tokens = await computedToken(contentData.stream);
     saveMessage();
     await nextTick();
     hljsInit();
@@ -997,11 +996,10 @@ function tokensCount() {
                 flex: 1;
             }
 
-            :deep(.content:last-child)
-                > :not(ol):not(ul):not(pre):last-child:after,
-            :deep(.content:last-child) > ol:last-child li:last-child:after,
-            :deep(.content:last-child) > pre:last-child code:after,
-            :deep(.content:last-child) > ul:last-child li:last-child:after {
+            :deep(.content) > :not(ol):not(ul):not(pre):last-child:after,
+            :deep(.content) > ol:last-child li:last-child:after,
+            :deep(.content) > pre:last-child code:after,
+            :deep(.content) > ul:last-child li:last-child:after {
                 content: "";
                 display: inline-block;
                 width: 8px;
